@@ -1,8 +1,11 @@
 ##Mi grupo esta conformado por:
  
 Mateo Polanco
+
 Mateo Acevedo
+
 Juan Pablo Aristizabal
+
 Luis Guillermo Vélez
 
 Enlace del video: 
