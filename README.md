@@ -1,12 +1,14 @@
-##Mi grupo esta conformado por:
+Mi grupo esta conformado por:
  
-Mateo Polanco
+1- Mateo Polanco
 
-Mateo Acevedo
+2- Mateo Acevedo
 
-Juan Pablo Aristizabal
+3- Juan Pablo Aristizabal
 
-Luis Guillermo Vélez
+4- Luis Guillermo Vélez
+
+
 
 Enlace del video: 
 
