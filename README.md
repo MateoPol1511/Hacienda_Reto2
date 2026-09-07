@@ -1,4 +1,9 @@
-# Hacienda Reto 2
+Roles y Responsabilidades
+Rol	Responder por	Encargado/a
+Arquitecto de dominio	Identificación de responsabilidades y límites de cada clase (SRP), modelo de dominio, jerarquías de herencia y su validez frente a LSP.	Mateo Acevedo
+Arquitecto de dependencias	Mapa de dependencias, abstracciones (interfaces), inversión e inyección de dependencias, composición raíz (DIP, ISP).	Juan Pablo Aristízabal
+Ingeniero de comportamiento	Pruebas de caracterización, evidencia de que la conducta observable se preservó, escenarios de ejecución del programa principal.	Luis Guillermo Vélez
+Integrador y evidencia	Consistencia diagrama–código, estructura del entregable, bitácora de uso de IA, métricas antes/después.	Mateo Polanco# Hacienda Reto 2
 
 Aplicación web MVC para la gestión de la hacienda, acompañada de la biblioteca
 de dominio y aplicación `Bib_Hacienda`.
