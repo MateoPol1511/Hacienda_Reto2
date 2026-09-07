@@ -1,0 +1,111 @@
+﻿@using Bib_Hacienda.Dominio
+@{
+    ViewData["Title"] = "🛡️ Diagnóstico de Autorización";
+    var usuarios = (List<Usuario>)(ViewBag.Usuarios ?? new List<Usuario>());
+}
+
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <!-- Encabezado -->
+            <div class="aw-page-header mb-4">
+                <h1 class="display-6 fw-bold mb-1" style="color: var(--aw-text);">
+                    🛡️ Diagnóstico de Autorización
+                </h1>
+                <p class="text-muted mb-0">
+                    Herramienta de prueba del Strategy de autorización (P-03): ejecuta
+                    ServicioAutenticacion.AutorizarOperacion con cualquier usuario/rol,
+                    sin necesidad de iniciar sesión.
+                </p>
+            </div>
+
+            <!-- Mensaje de resultado -->
+            @if (ViewBag.Mensaje != null)
+            {
+                <div class="alert alert-@ViewBag.TipoMensaje alert-dismissible fade show" role="alert">
+                    <strong>@ViewBag.Mensaje</strong>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            }
+
+            <!-- Formulario -->
+            <div class="aw-card aw-reveal">
+                <div class="aw-card-header">Probar Autorización</div>
+                <div class="card-body p-4">
+                    <form asp-action="Autorizar" method="post" id="formAutorizar">
+                        @Html.AntiForgeryToken()
+
+                        <!-- Usuario -->
+                        <div class="mb-4">
+                            <label for="nombreUsuario" class="form-label fw-bold">Usuario</label>
+                            <div class="input-group input-group-lg">
+                                <span class="input-group-text" style="background-color: var(--aw-green-light);">
+                                    <span class="material-icons-outlined" style="font-size: 1.5rem;">person</span>
+                                </span>
+                                <select name="nombreUsuario" id="nombreUsuario" class="form-select" required>
+                                    <option value="" disabled selected>Selecciona un usuario...</option>
+                                    @foreach (var u in usuarios)
+                                    {
+                                        var seleccionado = (string)ViewBag.NombreUsuario == u.Nombre;
+                                        <option value="@u.Nombre" selected="@(seleccionado ? "selected" : null)">
+                                            @u.Nombre (@u.Rol)
+                                        </option>
+                                    }
+                                </select>
+                            </div>
+                            <small class="form-text text-muted">
+                                La política se resuelve con el Rol que ese usuario tiene guardado
+                                en Usuarios.txt (admin/empleado/visitante, o Null Object si el rol
+                                no está registrado en el diccionario de políticas).
+                            </small>
+                        </div>
+
+                        <!-- Operación -->
+                        <div class="mb-4">
+                            <label for="operacion" class="form-label fw-bold">Operación</label>
+                            <div class="input-group input-group-lg">
+                                <span class="input-group-text" style="background-color: var(--aw-green-light);">
+                                    <span class="material-icons-outlined" style="font-size: 1.5rem;">bolt</span>
+                                </span>
+                                <input name="operacion" id="operacion" type="text"
+                                       class="form-control"
+                                       placeholder="Ej: CrearPotrero"
+                                       value="@ViewBag.Operacion"
+                                       required />
+                            </div>
+                            <small class="form-text text-muted">
+                                Escribe la operación en PascalCase, p. ej. "CrearPotrero",
+                                "ConsultarPotrero", "ListarReses", "EliminarRes". Las políticas de
+                                Empleado/Visitante detectan la operación con Contains() sobre este texto.
+                            </small>
+                        </div>
+
+                        <!-- Botones -->
+                        <div class="d-flex justify-content-end mt-4">
+                            <a asp-action="Index" class="btn aw-btn aw-btn-secondary me-2">Volver</a>
+                            <button type="submit" class="btn aw-btn aw-btn-primary">
+                                <span class="material-icons-outlined" style="font-size: 1rem; vertical-align: sub;">check</span>
+                                Autorizar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Ayuda para las 3 evidencias -->
+            <div class="aw-card mt-4 aw-reveal" style="border-left: 4px solid #0d6efd; transition-delay: .2s;">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center mb-3">
+                        <span class="material-icons-outlined me-2" style="color: #0d6efd; font-size: 2rem;">fact_check</span>
+                        <h5 class="mb-0 fw-bold">Guía para las evidencias C-09 / C-10 / C-11</h5>
+                    </div>
+                    <ul class="mb-0 text-muted">
+                        <li><strong>C-09</strong> (permitido): usuario con rol <code>admin</code> + operación <code>CrearPotrero</code>.</li>
+                        <li><strong>C-10</strong> (denegado): usuario con rol <code>visitante</code> + operación <code>CrearPotrero</code>.</li>
+                        <li><strong>C-11</strong> (Null Object): usuario cuyo Rol en Usuarios.txt NO sea admin/empleado/visitante + cualquier operación.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

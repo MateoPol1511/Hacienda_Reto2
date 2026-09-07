@@ -1,0 +1,3 @@
+santi|santi11|admin
+miket|miket11|empleado
+invitado_prueba|hashinvalido123|invitado

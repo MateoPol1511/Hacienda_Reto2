@@ -1,0 +1,106 @@
+@model List<Bib_Hacienda.Dominio.RegistroGeolocalizacion>
+@{
+    ViewData["Title"] = $"Geolocalización - {ViewBag.NombreRes}";
+}
+<div class="container mt-4">
+    <div class="aw-page-header mb-4 d-flex justify-content-between align-items-center">
+        <div>
+            <h1 class="display-6 fw-bold mb-1" style="color: var(--aw-text);">
+                📡 Geolocalización de @ViewBag.NombreRes
+            </h1>
+            <p class="text-muted mb-0">Potrero: @ViewBag.PotreroId</p>
+        </div>
+        <a asp-action="Index" class="btn aw-btn aw-btn-secondary">
+            <span class="material-icons-outlined" style="font-size: 1.2rem; vertical-align: sub;">arrow_back</span>
+            Volver
+        </a>
+    </div>
+
+    <!-- Mensaje de éxito/error -->
+    @if (TempData["Mensaje"] != null)
+    {
+        <div class="alert alert-@TempData["TipoMensaje"] alert-dismissible fade show" role="alert">
+            <strong>@TempData["Mensaje"]</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    <!-- Formulario para registrar una nueva lectura del chip GPS -->
+    <div class="aw-card mb-4 aw-reveal">
+        <div class="p-3">
+            <h5 class="fw-bold mb-3">Registrar nueva lectura del chip GPS</h5>
+            <form asp-action="RegistrarUbicacion" method="post" class="row g-3">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="potreroId" value="@ViewBag.PotreroId" />
+                <input type="hidden" name="nombreRes" value="@ViewBag.NombreRes" />
+
+                <div class="col-md-3">
+                    <label for="codigoChip" class="form-label fw-bold">Código del chip:</label>
+                    <input type="text" class="form-control" id="codigoChip" name="codigoChip" placeholder="Ej: GPS-0001" required />
+                </div>
+                <div class="col-md-3">
+                    <label for="fecha" class="form-label fw-bold">Fecha y hora:</label>
+                    <input type="datetime-local" class="form-control" id="fecha" name="fecha" required />
+                </div>
+                <div class="col-md-3">
+                    <label for="latitud" class="form-label fw-bold">Latitud:</label>
+                    <input type="number" step="any" min="-90" max="90" class="form-control" id="latitud" name="latitud" placeholder="Ej: 6.244203" required />
+                </div>
+                <div class="col-md-3">
+                    <label for="longitud" class="form-label fw-bold">Longitud:</label>
+                    <input type="number" step="any" min="-180" max="180" class="form-control" id="longitud" name="longitud" placeholder="Ej: -75.581215" required />
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn aw-btn aw-btn-primary">
+                        <span class="material-icons-outlined" style="font-size: 1rem; vertical-align: sub;">check</span>
+                        Registrar lectura
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Listado cronológico de lecturas de posición -->
+    @if (Model != null && Model.Any())
+    {
+        <div class="aw-card aw-reveal">
+            <div class="p-3">
+                <table class="table table-hover aw-table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Fecha y hora</th>
+                            <th>Chip</th>
+                            <th>Latitud</th>
+                            <th>Longitud</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in Model)
+                        {
+                            <tr>
+                                <td class="fw-semibold">@r.Fecha.ToString("yyyy-MM-dd HH:mm")</td>
+                                <td><span class="aw-badge aw-badge-info">@r.CodigoChip</span></td>
+                                <td>@r.Latitud.ToString("F6")</td>
+                                <td>@r.Longitud.ToString("F6")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-info aw-card border-0 text-center py-5">
+            <h5>Esta res aún no tiene lecturas de geolocalización registradas.</h5>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        setTimeout(function() {
+            $('.alert-dismissible').alert('close');
+        }, 15000);
+    </script>
+}
