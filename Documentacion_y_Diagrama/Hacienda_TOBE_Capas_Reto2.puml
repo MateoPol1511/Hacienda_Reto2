@@ -1,0 +1,563 @@
+@startuml Hacienda_TOBE_Capas
+
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam defaultFontSize 12
+skinparam ArrowColor #555555
+skinparam class {
+    BorderColor #888888
+    FontSize 12
+}
+
+title Hacienda - Diagrama UML TO-BE por capas\n<size:11>Evolución del AS-IS de la entrega anterior | Alcance: Factory Method, Strategy y Decorator (Decorator aplicado dos veces: Historia Clínica -ya existente desde el Reto 1, ahora auditada- y Geolocalización -SC-2, enteramente nueva en este Reto 2-)</size>
+
+legend top right
+  |= Color |= Significado |
+  |<#F5C242>| Intervenido por patrón (entra en Reto 2), o ampliado con nuevas operaciones de persistencia (<<ampliado>>: IRepositorioPotreros / RepositorioPotrerosTexto, no es patrón) |
+  |<#FFFFFF>| Conservado sin cambios (borde/texto negro). Incluye lo heredado del AS-IS Y lo heredado sin cambios propios del Reto 1 (p. ej. Historia Clínica base) |
+  |<#C9E4CA>| Interfaz / contrato nuevo en Reto 2 |
+  |<#F1948A>| Sale del diseño (reemplazado por el patrón) |
+  Nota: la SC que cuenta como "implementada, distinta de la ya hecha" (Anexo B)
+  es SC-2 (Geolocalización). SC-3 (Historia Clínica) ya existía desde el Reto 1;
+  aquí solo se le agrega el Decorator de auditoría como refuerzo adicional.
+endlegend
+
+package "PRESENTACIÓN Y COMPOSICIÓN ROOT" #EAF2F8 {
+
+  class "Controladores existentes" as Controladores #FFFFFF;line:black;text:black {
+    <<controller>>
+    Endpoints de potreros, ventas,
+    vacunación, autenticación,
+    historia clínica y geolocalización
+    (estas dos últimas, acciones ya
+    existentes en ResController).
+  }
+
+  class "Program.cs" as Program #F5C242 {
+    <<compositionRoot>>
+    Registra fábricas y políticas
+    (Dictionary por tipo/rol) y compone,
+    con la MISMA clase de Decorator,
+    los dos repositorios auditados:
+    historia clínica (ya existía) y
+    geolocalización (SC-2, nueva),
+    todo inline (no hay clase de
+    "extensiones" separada).
+  }
+
+  class "IContextoEjecucion / ContextoEjecucionHttp" as Contexto #F5C242 {
+    <<context>> <<new>>
+    +ObtenerUsuarioActual(): string
+    ..
+    Nuevo para el Decorator: puerto para
+    que Bib_Hacienda pregunte "quién
+    ejecuta" sin conocer HttpContext.
+    Implementado en p_mvcHacienda
+    (ContextoEjecucionHttp). Compartido
+    por los dos decoradores de auditoría.
+  }
+
+  note as NotaPresentacion
+    **Lectura de la capa**
+    Los controladores dependen de servicios.
+    Program.cs es el único punto que conoce
+    las implementaciones concretas nuevas.
+  end note
+}
+
+package "APLICACIÓN - SERVICIOS Y PUERTOS" #E8F6F1 {
+
+  class "Servicios existentes" as ServiciosExistentes #FFFFFF;line:black;text:black {
+    <<service>>
+    ServicioPotreros
+    ServicioVentas
+    ServicioVacunacion
+    ServicioAlimentacion
+    ServicioInventarioVacunas
+    ..
+    Se conservan sin cambios. No incluye
+    ServicioHistoriaClinica ni
+    ServicioGeolocalizacion (ver clases
+    aparte).
+  }
+
+  class "ServicioHistoriaClinica" as ServicioHistoria #FFFFFF;line:black;text:black {
+    <<service>>
+    +RegistrarEvento(...): ResultadoOperacion
+    +ConsultarHistoria(potreroId, nombreRes): List<EventoClinico>
+    ..
+    Ya existía completo desde el Reto 1
+    (verificado contra ese zip): entidad,
+    servicio, puerto y repositorio base ya
+    estaban. Implementa IHistoriaClinica.
+    Sin cambios propios en este Reto 2; solo
+    puede recibir por inyección la versión
+    decorada de su repositorio (ver E-04).
+  }
+
+  class "ServicioGeolocalizacion" as ServicioGeo #F5C242 {
+    <<service>> <<new>>
+    +RegistrarUbicacion(...): ResultadoOperacion
+    +ConsultarUbicaciones(potreroId, nombreRes): List<RegistroGeolocalizacion>
+    ..
+    SC-2 ("conectar a las reses chips
+    para geolocalización"), enteramente
+    nuevo en este Reto 2. Implementa
+    IGeolocalizacion. Es la solicitud de
+    cambio que cuenta para el Anexo B.
+  }
+
+  interface "IPoliticaAutorizacion" as IPolitica #C9E4CA {
+    <<strategy>>
+    +PuedeEjecutar(operacion): bool
+  }
+
+  class "PoliticaAdministrador" as PolAdmin #C9E4CA
+  class "PoliticaEmpleado" as PolEmpleado #C9E4CA
+  class "PoliticaVisitante" as PolVisitante #C9E4CA
+  class "PoliticaSinPermisos" as PolNinguna #C9E4CA {
+    <<nullObject>>
+    Rol no registrado: sin permisos.
+    Reemplaza el "return false" final
+    del if/else del AS-IS.
+  }
+
+  interface "IRegistroPoliticasAutorizacion" as IRegistroPoliticas #C9E4CA {
+    <<port>>
+    +Obtener(rol): IPoliticaAutorizacion
+    ..
+    Puerto que consume ServicioAutenticacion
+    (mismo estilo que IRegistroResFactories).
+  }
+
+  class "RegistroPoliticasAutorizacion" as RegistroPoliticas #F5C242 {
+    <<strategyRegistry>>
+    -politicas: Dictionary<string,IPoliticaAutorizacion>
+    -politicaPorDefecto: PoliticaSinPermisos
+    +Obtener(rol): IPoliticaAutorizacion
+    ..
+    Implementa IRegistroPoliticasAutorizacion.
+    Cambio: P-03
+  }
+
+  note bottom of PolVisitante
+    Estrategias intercambiables,
+    resueltas por rol en tiempo
+    de ejecución vía el registro.
+  end note
+
+  class "ServicioAutenticacion" as ServicioAuth #F5C242 {
+    <<strategyContext>>
+    -registroPoliticas: IRegistroPoliticasAutorizacion
+    +AutorizarOperacion(...)
+    ..
+    Resuelve la política por rol en cada
+    llamada (no guarda una política fija).
+    Elimina comparaciones de rol
+    y delega la decisión.
+    Cambio: P-03
+  }
+
+  note bottom of ServicioAuth
+    Corrección de inconsistencia: la clave que
+    se pasa a IRegistroPoliticasAutorizacion
+    .Obtener(rol) es Usuario.Rol
+    (admin/empleado/visitante), NUNCA
+    Usuario.Nombre. Usuario (Dominio) expone
+    una propiedad Rol propia para esto.
+  end note
+
+  interface "IProveedorPermisos" as IProveedorPermisos #F1948A {
+    <<sale>>
+    +TienePermiso(rol, operacion): bool
+    ..
+    Se retira: su contrato queda
+    reemplazado por IPoliticaAutorizacion +
+    IRegistroPoliticasAutorizacion (Strategy).
+  }
+
+  class "ProveedorPermisosPorRol" as ProveedorPermisos #F1948A {
+    <<sale>>
+    +TienePermiso(rol, operacion): bool
+    ..
+    Contenía el if/else admin/empleado/
+    visitante. Su lógica se reparte en
+    PolAdmin/PolEmpleado/PolVisitante/
+    PolNinguna. Sale del diseño.
+  }
+
+  class "Autenticacion (huérfana)" as AutenticacionHuerfana #F1948A {
+    <<sale>>
+    Mecanismo de autenticación duplicado
+    del AS-IS: implementaba IAutenticacion
+    pero nunca se instanciaba desde
+    Program.cs/Controllers. Se unifica y
+    sale, reemplazado por ServicioAutenticacion.
+  }
+
+  IProveedorPermisos <|.. ProveedorPermisos
+  ServicioAuth ..> IProveedorPermisos : reemplaza
+
+  note bottom of AutenticacionHuerfana
+    Coexistía con "UsuarioService" (la que sí
+    usaba AccountController). Ambas se
+    unifican en ServicioAutenticacion (TO-BE).
+  end note
+
+  interface "IResFactory" as IResFactory #FFFFFF;line:black;text:black {
+    <<factory>>
+    +Crear(nombre,peso,edad): Res
+  }
+
+  class "ResFactoryTernero" as FTernero #FFFFFF;line:black;text:black
+  class "ResFactoryCebon" as FCebon #FFFFFF;line:black;text:black
+  class "ResFactoryNovillo" as FNovillo #FFFFFF;line:black;text:black
+
+  note bottom of FNovillo
+    Factory Method para deserialización.
+  end note
+
+  interface "IRegistroResFactories" as IRegistroFactories #C9E4CA {
+    <<port>>
+    +ObtenerFabrica(tipo): IResFactory
+    ..
+    Puerto que consumen ServicioPotreros,
+    SerializadorRes y SerializadorVenta (DIP).
+  }
+
+  class "RegistroResFactories" as RegistroFactories #F5C242 {
+    <<factoryRegistry>>
+    -fabricas: Dictionary<string,IResFactory>
+    +ObtenerFabrica(tipo): IResFactory
+    ..
+    Implementa IRegistroResFactories.
+    Cambio: P-02
+  }
+
+  class "IFabricaVacunaBacteriana / IFabricaVacunaViva" as FabricasVacuna #FFFFFF;line:black;text:black {
+    <<factory>>
+    FabricaVacunaBacteriana
+    FabricaVacunaViva
+    ..
+    Factory Method de una fase anterior
+    (H-05/OCP). Conservadas sin cambios;
+    fuera del alcance de patrones de
+    este Reto (P-01/P-02 solo cubre Res).
+  }
+
+  class "Interfaces existentes" as PuertosExistentes #FFFFFF;line:black;text:black {
+    <<ports>>
+    IRepositorioVentas
+    IRepositorioVacunas
+    IRepositorioUsuarios
+    IVacunacion / IVentaRes
+    ..
+    Se conservan del AS-IS. No incluye
+    IRepositorioPotreros (ver clase aparte:
+    ganó métodos nuevos, no es AS-IS puro).
+  }
+
+  interface "IRepositorioPotreros" as IRepoPotreros #F5C242 {
+    <<port>> <<ampliado>>
+    +AgregarRes(potreroId, res): void
+    +ActualizarRes(potreroId, res): void
+    +RemoverRes(potreroId, nombreRes): void
+    +RegistrarVacunaAplicada(potreroId, nombreRes, vacuna): void
+    ..
+    Ampliación en este Reto 2: Agregar(potrero)
+    solo cubría potreros NUEVOS. Se agregan
+    estos 4 métodos para que alimentar, vender
+    o vacunar una res de un potrero YA existente
+    también quede persistido (Reses.txt /
+    VacunasAplicadas.txt), no solo reflejado en
+    memoria. Fuera del alcance de Factory/
+    Strategy/Decorator (P-01..P-04); no es
+    un patrón, es una ampliación puntual del
+    puerto de persistencia.
+  }
+
+  interface "IRepositorioHistoriaClinica" as IRepoHistoria #FFFFFF;line:black;text:black {
+    <<port>>
+    +Agregar(evento: EventoClinico): void
+    +ObtenerPorRes(potreroId, nombreRes): List<EventoClinico>
+    ..
+    Ya existía desde el Reto 1 (mismo
+    paquete que IRepositorioPotreros,
+    Aplicacion.Repositorios). Sin cambios
+    propios; ahora puede resolverse hacia
+    la versión decorada (ver E-04).
+  }
+
+  interface "IHistoriaClinica" as IHistoriaClinica #FFFFFF;line:black;text:black {
+    <<port>>
+    +RegistrarEvento(...): ResultadoOperacion
+    +ConsultarHistoria(potreroId, nombreRes): List<EventoClinico>
+    ..
+    Ya existía desde el Reto 1 (mismo
+    paquete que IVacunacion/IVentaRes,
+    Interfaces). Lo implementa
+    ServicioHistoriaClinica, sin cambios.
+  }
+
+  interface "IRepositorioGeolocalizacion" as IRepoGeo #C9E4CA {
+    <<port>> <<new>>
+    +Agregar(registro: RegistroGeolocalizacion): void
+    +ObtenerPorRes(potreroId, nombreRes): List<RegistroGeolocalizacion>
+    ..
+    SC-2, enteramente nuevo. Mismo
+    paquete que IRepositorioHistoriaClinica
+    (Aplicacion.Repositorios). Contrato
+    común del Decorator de auditoría.
+  }
+
+  interface "IGeolocalizacion" as IGeolocalizacion #C9E4CA {
+    <<port>> <<new>>
+    +RegistrarUbicacion(...): ResultadoOperacion
+    +ConsultarUbicaciones(potreroId, nombreRes): List<RegistroGeolocalizacion>
+    ..
+    SC-2, enteramente nuevo. Mismo
+    paquete que IHistoriaClinica
+    (Interfaces). Lo implementa
+    ServicioGeolocalizacion.
+  }
+}
+
+package "DOMINIO - ENTIDADES Y REGLAS" #FBF3D5 {
+
+  class "Res" as Res #FFFFFF;line:black;text:black {
+    <<entity>>
+    +Nombre: string
+    +Peso: uint
+    +Edad: ushort
+    +EsEdadValida(): bool
+    +MaxVacunasBacterianas: byte
+    +MaxVacunasVivas: byte
+    ..
+    Entidad conservada; recibe objetos
+    creados por Factory Method.
+  }
+
+  class "Potrero / Venta / Vacuna" as EntidadesExistentes #FFFFFF;line:black;text:black {
+    <<entity>>
+    Entidades existentes.
+    Reglas de capacidad, venta y
+    vacunación permanecen en dominio.
+  }
+
+  class "Usuario" as Usuario #F5C242 {
+    <<entity>>
+    +Nombre: string
+    +ContrasenaHash: string
+    +Rol: string
+    ..
+    Corrección de inconsistencia: se agrega
+    Rol (admin/empleado/visitante) porque la
+    autorización (Strategy, P-03) se resuelve
+    por rol, no por Nombre. Persistido por
+    SerializadorUsuario / RepositorioUsuariosTexto
+    ("Nombre|ContrasenaHash|Rol").
+  }
+
+  ServicioAuth --> Usuario : usa Usuario.Rol
+  Usuario --> IRegistroPoliticas : Rol es la clave
+
+  class "ReglaRes / ReglaVacuna" as Reglas #FFFFFF;line:black;text:black {
+    <<rules>>
+    ReglaPotrero
+    IValidadorRes
+    IValidadorPotrero
+    IValidadorVacuna / Venta
+    ..
+    Conservadas del AS-IS.
+  }
+
+  class "EventoClinico" as EventoClinico #FFFFFF;line:black;text:black {
+    <<entity>>
+    +PotreroId: string
+    +NombreRes: string
+    +Fecha: DateTime
+    +TipoEvento: string
+    +Descripcion: string
+    ..
+    Ya existía tal cual desde el Reto 1
+    (verificado contra ese zip). Sin
+    cambios propios; se documenta aquí
+    solo porque el Decorator de E-04
+    opera sobre el repositorio que la
+    persiste.
+  }
+
+  class "RegistroGeolocalizacion" as RegistroGeo #F5C242 {
+    <<entity>> <<new>>
+    +PotreroId: string
+    +NombreRes: string
+    +CodigoChip: string
+    +Fecha: DateTime
+    +Latitud: double
+    +Longitud: double
+    ..
+    SC-2: registro plano (no agregado),
+    enteramente nuevo. Se identifica por
+    PotreroId+NombreRes, igual criterio
+    que EventoClinico. CodigoChip viaja
+    en cada lectura (una res puede
+    cambiar de chip).
+  }
+
+  note as NotaDominio
+    **Regla de consistencia**
+    Los patrones no viven dentro de las entidades.
+    Factory crea Res; Strategy decide permisos;
+    Decorator agrega auditoría alrededor de un
+    contrato sin cambiar al consumidor, tanto en
+    Historia Clínica (existente) como en
+    Geolocalización (SC-2, nueva).
+
+    Esto evita atribuir responsabilidades nuevas
+    a clases que deben permanecer estables.
+  end note
+}
+
+package "INFRAESTRUCTURA - PERSISTENCIA Y DECORATOR" #ECEFF4 {
+
+  class "Repositorios y serializadores existentes" as ReposExistentes #FFFFFF;line:black;text:black {
+    <<repository>>
+    RepositorioVentasTexto / VacunasTexto
+    SerializadorRes / SerializadorVenta
+    ..
+    Se conservan; deserialización delegada.
+    No incluye RepositorioPotrerosTexto (ver
+    clase aparte: implementa la ampliación
+    de IRepositorioPotreros).
+  }
+
+  class "RepositorioPotrerosTexto" as RepoPotrerosTexto #F5C242 {
+    <<repository>> <<ampliado>>
+    Implementa IRepositorioPotreros, incluidos
+    los 4 métodos nuevos. Reescribe Reses.txt
+    completo en Actualizar/RemoverRes (archivo
+    sin índice); añade VacunasAplicadas.txt y
+    su carga en CargarResesDentroDePotreros.
+  }
+
+  class "RepositorioHistoriaClinicaTexto" as RepoHistoriaTexto #FFFFFF;line:black;text:black {
+    <<repository>>
+    Implementa IRepositorioHistoriaClinica.
+    Ya existía desde el Reto 1 (persiste
+    en HistoriaClinica.txt); sin cambios
+    propios en este Reto 2.
+  }
+
+  class "RepositorioHistoriaClinicaConAuditoria" as RepoHistoriaAuditoria #F5C242 {
+    <<decorator>> <<new>>
+    -decorando: IRepositorioHistoriaClinica
+    Guarda y registra auditoría en
+    AuditoriaHistoriaClinica.txt.
+    ..
+    Decorator: P-04. Único elemento
+    nuevo de la vertical de Historia
+    Clínica en este Reto 2 (refuerzo,
+    no la SC contada para Anexo B).
+  }
+
+  class "RepositorioGeolocalizacionTexto" as RepoGeoTexto #F5C242 {
+    <<repository>> <<new>>
+    Implementa IRepositorioGeolocalizacion.
+    SC-2: persiste en Geolocalizacion.txt.
+    Enteramente nuevo, no reutiliza ningún
+    repositorio existente.
+  }
+
+  class "RepositorioGeolocalizacionConAuditoria" as RepoGeoAuditoria #F5C242 {
+    <<decorator>> <<new>>
+    -decorando: IRepositorioGeolocalizacion
+    Guarda y registra auditoría en
+    AuditoriaGeolocalizacion.txt.
+    ..
+    Decorator: P-04 / SC-2. MISMA idea
+    de decorador que RepoHistoriaAuditoria
+    (mismo contrato de auditoría, mismo
+    IContextoEjecucion), aplicada sobre un
+    repositorio distinto: evidencia de que
+    el patrón generaliza sin modificarse (OCP).
+  }
+
+  note as NotaComposicionFinal
+    **Composición final (Program.cs)**
+    IRepositorioHistoriaClinica
+    = Auditoria(BaseTexto)  -- ya existía, ahora envuelto
+
+    IRepositorioGeolocalizacion
+    = Auditoria(BaseTexto)  -- SC-2, nuevo en Reto 2
+    (esta es la SC que cuenta para el Anexo B)
+
+    Los servicios usan la interfaz;
+    no conocen la envoltura.
+  end note
+}
+
+' ===== Relaciones dentro de capas =====
+IPolitica <|.. PolAdmin
+IPolitica <|.. PolEmpleado
+IPolitica <|.. PolVisitante
+IPolitica <|.. PolNinguna
+IRegistroPoliticas <|.. RegistroPoliticas
+RegistroPoliticas --> IPolitica : resuelve
+ServicioAuth --> IRegistroPoliticas : usa
+
+IResFactory <|.. FTernero
+IResFactory <|.. FCebon
+IResFactory <|.. FNovillo
+IRegistroFactories <|.. RegistroFactories
+RegistroFactories --> IResFactory : resuelve
+
+IRepoHistoria <|.. RepoHistoriaTexto
+IRepoHistoria <|.. RepoHistoriaAuditoria
+RepoHistoriaAuditoria o--> IRepoHistoria : decora
+RepoHistoriaAuditoria --> Contexto : usa
+
+IHistoriaClinica <|.. ServicioHistoria
+ServicioHistoria --> IRepoHistoria
+
+IRepoGeo <|.. RepoGeoTexto
+IRepoGeo <|.. RepoGeoAuditoria
+RepoGeoAuditoria o--> IRepoGeo : decora
+RepoGeoAuditoria --> Contexto : usa
+
+IGeolocalizacion <|.. ServicioGeo
+ServicioGeo --> IRepoGeo
+ServicioGeo --> PuertosExistentes : usa (IRepositorioPotreros)
+
+ServiciosExistentes --> IRegistroFactories
+ServiciosExistentes --> FabricasVacuna : usa (fuera de alcance)
+ServiciosExistentes --> IRepoPotreros : usa (Actualizar/Remover/\nRegistrarVacunaAplicada)
+
+Controladores --> ServiciosExistentes
+Controladores --> ServicioAuth
+Controladores --> ServicioHistoria
+Controladores --> ServicioGeo
+
+' ===== Relaciones entre capas (dependencia de configuración: discontinuas) =====
+Program ..> RegistroFactories
+Program ..> RegistroPoliticas
+Program ..> RepoHistoriaAuditoria
+Program ..> RepoGeoAuditoria
+Program ..> Contexto
+
+ServicioAuth --> PuertosExistentes : usa (IRepositorioUsuarios)
+ServicioHistoria --> PuertosExistentes : usa (IRepositorioPotreros)
+RegistroFactories --> Res
+IRepoHistoria --> EventoClinico
+IHistoriaClinica --> EventoClinico
+IRepoGeo --> RegistroGeo
+IGeolocalizacion --> RegistroGeo
+
+ReposExistentes --> Res
+RepoHistoriaTexto ..> IRepoHistoria
+RepoGeoTexto ..> IRepoGeo
+RepoPotrerosTexto ..> IRepoPotreros
+RepoPotrerosTexto --> Res
+
+@enduml
